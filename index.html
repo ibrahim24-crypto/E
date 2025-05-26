@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP Status Code Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            800: '#1a1a2e',
+                            900: '#16213e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .search-highlight {
+            background-color: rgba(234, 179, 8, 0.3);
+            padding: 0.1rem 0.2rem;
+            border-radius: 0.25rem;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .no-results {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .severity-info {
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .severity-success {
+            border-left: 4px solid #10b981;
+        }
+        
+        .severity-warning {
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .severity-critical {
+            border-left: 4px solid #ef4444;
+        }
+        
+        .category-chip {
+            transition: all 0.2s ease;
+        }
+        
+        .category-chip:hover {
+            transform: translateY(-2px);
+        }
+        
+        .category-chip.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-12 max-w-6xl">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-blue-400 mb-3">HTTP Status Code Explorer</h1>
+            <p class="text-gray-400">Search and explore HTTP status codes with detailed explanations</p>
+        </header>
+        
+        <!-- Search and Filter Section -->
+        <div class="bg-gray-800 rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 border border-gray-700">
+            <div class="relative mb-6">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400"></i>
+                </div>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="block w-full pl-10 pr-3 py-3 border border-gray-700 rounded-lg bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-white placeholder-gray-400" 
+                    placeholder="Search by code, title or description..." 
+                    autocomplete="off"
+                >
+                <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                    <span id="resultCount" class="text-sm text-gray-400 hidden">0 results</span>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-3 mb-4">
+                <span class="text-sm text-gray-400 flex items-center">Filter by:</span>
+                <button class="category-chip text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full transition-all duration-200" data-category="all">All</button>
+                <button class="category-chip text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full transition-all duration-200" data-category="HTTP">HTTP</button>
+                <button class="category-chip text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full transition-all duration-200" data-category="System">System</button>
+            </div>
+            
+            <div class="flex flex-wrap gap-3">
+                <span class="text-sm text-gray-400 flex items-center">Severity:</span>
+                <button class="severity-filter text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full transition-all duration-200" data-severity="all">All</button>
+                <button class="severity-filter text-xs bg-blue-900 hover:bg-blue-800 px-3 py-1 rounded-full transition-all duration-200" data-severity="info">
+                    <i class="fas fa-info-circle mr-1"></i> Info
+                </button>
+                <button class="severity-filter text-xs bg-green-900 hover:bg-green-800 px-3 py-1 rounded-full transition-all duration-200" data-severity="success">
+                    <i class="fas fa-check-circle mr-1"></i> Success
+                </button>
+                <button class="severity-filter text-xs bg-yellow-900 hover:bg-yellow-800 px-3 py-1 rounded-full transition-all duration-200" data-severity="warning">
+                    <i class="fas fa-exclamation-triangle mr-1"></i> Warning
+                </button>
+                <button class="severity-filter text-xs bg-red-900 hover:bg-red-800 px-3 py-1 rounded-full transition-all duration-200" data-severity="critical">
+                    <i class="fas fa-times-circle mr-1"></i> Critical
+                </button>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div class="bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-700">
+            <div id="resultsContainer">
+                <!-- Results will be inserted here by JavaScript -->
+                <div class="p-6 text-center text-gray-400">
+                    <i class="fas fa-search fa-2x mb-3 text-gray-600"></i>
+                    <p>Enter a search term to find HTTP status codes</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data to search through
+    const errorData = [
+  { code: "100", title: "Continue", description: "The server has received the request headers and the client should proceed to send the request body.", severity: "info" },
+  { code: "101", title: "Switching Protocols", description: "The requester has asked the server to switch protocols and the server has agreed to do so.", severity: "info" },
+  { code: "102", title: "Processing (WebDAV)", description: "Indicates server has received and is processing request, but no response available yet.", severity: "info" },
+  { code: "200", title: "OK", description: "Standard response for successful HTTP requests.", severity: "success" },
+  { code: "201", title: "Created", description: "The request has been fulfilled and resulted in a new resource being created.", severity: "success" },
+  { code: "202", title: "Accepted", description: "The request has been accepted for processing, but the processing has not been completed.", severity: "success" },
+  { code: "203", title: "Non-Authoritative Information", description: "The server successfully processed the request, but is returning information that may be from another source.", severity: "success" },
+  { code: "204", title: "No Content", description: "The server successfully processed the request, but is not returning any content.", severity: "success" },
+  { code: "205", title: "Reset Content", description: "The server successfully processed the request, but is not returning any content and requires that the requester reset the document view.", severity: "success" },
+  { code: "206", title: "Partial Content", description: "The server is delivering only part of the resource due to a range header sent by the client.", severity: "success" },
+  { code: "207", title: "Multi-Status (WebDAV)", description: "Conveys multiple status codes for batch operations in WebDAV environments.", severity: "success" },
+  { code: "208", title: "Already Reported (WebDAV)", description: "The members of a DAV binding have already been enumerated in a preceding part of the response.", severity: "success" },
+  { code: "226", title: "IM Used", description: "The server has fulfilled a request for the resource, and the response is a representation of the result of one or more instance-manipulations applied to the current instance.", severity: "success" },
+  { code: "300", title: "Multiple Choices", description: "Indicates multiple options for the resource that the client may follow.", severity: "info" },
+  { code: "301", title: "Moved Permanently", description: "This and all future requests should be directed to the given URI.", severity: "info" },
+  { code: "302", title: "Found", description: "Tells the client to look at another URL. The HTTP/1.0 specification (RFC 1945) required the client to perform a temporary redirect.", severity: "info" },
+  { code: "303", title: "See Other", description: "The response to the request can be found under another URI using a GET method.", severity: "info" },
+  { code: "304", title: "Not Modified", description: "Indicates that the resource has not been modified since the version specified by the request headers.", severity: "info" },
+  { code: "305", title: "Use Proxy", description: "The requested resource is only available through a proxy.", severity: "info" },
+  { code: "306", title: "Switch Proxy", description: "No longer used. Originally meant 'Subsequent requests should use the specified proxy'.", severity: "info" },
+  { code: "307", title: "Temporary Redirect", description: "The request should be repeated with another URI, but future requests should still use the original URI.", severity: "info" },
+  { code: "308", title: "Permanent Redirect", description: "The request and all future requests should be repeated using another URI.", severity: "info" },
+  { code: "400", title: "Bad Request", description: "The server cannot or will not process the request due to an apparent client error.", severity: "warning" },
+  { code: "401", title: "Unauthorized", description: "Authentication is required and has failed or has not yet been provided.", severity: "warning" },
+  { code: "402", title: "Payment Required", description: "Reserved for future use. Originally intended for digital cash/micropayment.", severity: "warning" },
+  { code: "403", title: "Forbidden", description: "The request was valid, but the server is refusing action.", severity: "warning" },
+  { code: "404", title: "Not Found", description: "The requested resource could not be found but may be available in the future.", severity: "warning" },
+  { code: "405", title: "Method Not Allowed", description: "A request method is not supported for the requested resource.", severity: "warning" },
+  { code: "406", title: "Not Acceptable", description: "The resource generates only content not acceptable per Accept headers.", severity: "warning" },
+  { code: "407", title: "Proxy Authentication Required", description: "The client must first authenticate itself with the proxy.", severity: "warning" },
+  { code: "408", title: "Request Timeout", description: "The server timed out waiting for the request.", severity: "warning" },
+  { code: "409", title: "Conflict", description: "The request could not be processed due to a conflict.", severity: "warning" },
+  { code: "410", title: "Gone", description: "The resource requested is no longer available and will not be again.", severity: "warning" },
+  { code: "411", title: "Length Required", description: "The request did not specify the content length.", severity: "warning" },
+  { code: "412", title: "Precondition Failed", description: "A precondition given in the request evaluated to false.", severity: "warning" },
+  { code: "413", title: "Payload Too Large", description: "The request is larger than the server can process.", severity: "warning" },
+  { code: "414", title: "URI Too Long", description: "The URI provided was too long.", severity: "warning" },
+  { code: "415", title: "Unsupported Media Type", description: "The request entity has a media type the server or resource does not support.", severity: "warning" },
+  { code: "416", title: "Range Not Satisfiable", description: "The client requested a portion the server cannot provide.", severity: "warning" },
+  { code: "417", title: "Expectation Failed", description: "The server cannot meet requirements in the Expect header.", severity: "warning" },
+  { code: "418", title: "I'm a teapot", description: "Defined as an April Fools' joke in 1998.", severity: "info" },
+  { code: "421", title: "Misdirected Request", description: "The request was directed at a server that is not able to produce a response.", severity: "warning" },
+  { code: "422", title: "Unprocessable Entity (WebDAV)", description: "The request was well-formed but has semantic errors.", severity: "warning" },
+  { code: "423", title: "Locked (WebDAV)", description: "The resource that is being accessed is locked.", severity: "warning" },
+  { code: "424", title: "Failed Dependency (WebDAV)", description: "The request failed because it depended on another request and that request failed.", severity: "warning" },
+  { code: "425", title: "Too Early", description: "The server is unwilling to risk processing a request that might be replayed.", severity: "warning" },
+  { code: "426", title: "Upgrade Required", description: "The client should switch to a different protocol.", severity: "warning" },
+  { code: "428", title: "Precondition Required", description: "The origin server requires the request to be conditional.", severity: "warning" },
+  { code: "429", title: "Too Many Requests", description: "The user has sent too many requests in a given amount of time.", severity: "warning" },
+  { code: "431", title: "Request Header Fields Too Large", description: "The server is unwilling to process the request due to large headers.", severity: "warning" },
+  { code: "451", title: "Unavailable For Legal Reasons", description: "Access to the resource is denied due to legal demands.", severity: "critical" },
+  { code: "500", title: "Internal Server Error", description: "A generic error message.", severity: "critical" },
+  { code: "501", title: "Not Implemented", description: "The server does not recognize the request method or lacks the ability to fulfill it.", severity: "critical" },
+  { code: "502", title: "Bad Gateway", description: "Invalid response from the upstream server.", severity: "critical" },
+  { code: "503", title: "Service Unavailable", description: "The server is currently unavailable.", severity: "critical" },
+  { code: "504", title: "Gateway Timeout", description: "Upstream server did not respond in time.", severity: "critical" },
+  { code: "505", title: "HTTP Version Not Supported", description: "The HTTP version used is not supported.", severity: "critical" },
+  { code: "506", title: "Variant Also Negotiates", description: "Circular reference in content negotiation.", severity: "critical" },
+  { code: "507", title: "Insufficient Storage (WebDAV)", description: "Unable to store the representation.", severity: "critical" },
+  { code: "508", title: "Loop Detected (WebDAV)", description: "Infinite loop while processing request.", severity: "critical" },
+  { code: "510", title: "Not Extended", description: "Further extensions are required.", severity: "critical" },
+  { code: "511", title: "Network Authentication Required", description: "Client must authenticate to gain network access.", severity: "warning" },
+  
+  // System errors
+  { code: "EACCES", title: "Permission Denied", description: "An attempt was made to access a file in a way forbidden by its file access permissions.", severity: "critical", category: "System" },
+  { code: "EADDRINUSE", title: "Address Already in Use", description: "An attempt was made to bind to an address that is already in use.", severity: "critical", category: "System" },
+  { code: "ECONNREFUSED", title: "Connection Refused", description: "A connection attempt was rejected by the remote host.", severity: "critical", category: "System" },
+  { code: "ECONNRESET", title: "Connection Reset", description: "The connection was forcibly closed by the peer.", severity: "critical", category: "System" },
+  { code: "EEXIST", title: "File Exists", description: "An attempt was made to create a file or directory that already exists.", severity: "warning", category: "System" },
+  { code: "EINVAL", title: "Invalid Argument", description: "An invalid argument was passed to a system call.", severity: "warning", category: "System" },
+  { code: "ENOENT", title: "No Such File or Directory", description: "A component of the specified pathname does not exist, or the pathname is an empty string.", severity: "warning", category: "System" },
+  { code: "ENOSPC", title: "No Space Left on Device", description: "There is no space left on the device to complete the operation.", severity: "critical", category: "System" },
+  { code: "EPERM", title: "Operation Not Permitted", description: "The operation was not permitted, typically due to insufficient permissions.", severity: "critical", category: "System" },
+  { code: "ETIMEDOUT", title: "Operation Timed Out", description: "The attempted operation timed out.", severity: "warning", category: "System" },
+  { code: "EPIPE", title: "Broken Pipe", description: "A write on a pipe with no readers.", severity: "warning", category: "System" },
+  { code: "ENOTDIR", title: "Not a Directory", description: "A component of the pathname is not a directory.", severity: "warning", category: "System" },
+  { code: "EISDIR", title: "Is a Directory", description: "An operation expected a file but found a directory.", severity: "warning", category: "System" },
+  { code: "EMFILE", title: "Too Many Open Files", description: "The process has too many files open.", severity: "critical", category: "System" },
+  { code: "EAGAIN", title: "Resource Temporarily Unavailable", description: "A resource is temporarily unavailable; try again later.", severity: "warning", category: "System" },
+  { code: "EBADF", title: "Bad File Descriptor", description: "An invalid file descriptor was used in a system call.", severity: "critical", category: "System" },
+  { code: "ENOMEM", title: "Out of Memory", description: "The system cannot allocate more memory.", severity: "critical", category: "System" },
+  { code: "EBUSY", title: "Device or Resource Busy", description: "The requested resource is currently busy.", severity: "warning", category: "System" },
+  { code: "ENOTEMPTY", title: "Directory Not Empty", description: "Attempted to remove a directory that is not empty.", severity: "warning", category: "System" },
+  { code: "ENODEV", title: "No Such Device", description: "A referenced device does not exist.", severity: "critical", category: "System" },
+  { code: "ENXIO", title: "No Such Device or Address", description: "No such device or address exists.", severity: "critical", category: "System" },
+  { code: "EROFS", title: "Read-Only File System", description: "Attempted to modify a file on a read-only filesystem.", severity: "critical", category: "System" },
+  { code: "ELOOP", title: "Too Many Symbolic Links", description: "Too many levels of symbolic links were encountered in pathname resolution.", severity: "warning", category: "System" },
+  { code: "ENAMETOOLONG", title: "Filename Too Long", description: "The filename or pathname is too long.", severity: "warning", category: "System" },
+  { code: "EINTR", title: "Interrupted System Call", description: "A system call was interrupted by a signal before it could complete.", severity: "info", category: "System" },
+  { code: "EIO", title: "Input/Output Error", description: "A low-level I/O error occurred while accessing the device.", severity: "critical", category: "System" },
+  { code: "EFAULT", title: "Bad Address", description: "An invalid pointer address was passed to a system call.", severity: "critical", category: "System" },
+  { code: "EDEADLK", title: "Resource Deadlock Avoided", description: "Resource deadlock detected/prevented.", severity: "critical", category: "System" },
+  { code: "EMLINK", title: "Too Many Links", description: "A file has too many hard links.", severity: "warning", category: "System" }
+];
+
+
+        // DOM elements
+        const searchInput = document.getElementById('searchInput');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultCount = document.getElementById('resultCount');
+        const categoryChips = document.querySelectorAll('.category-chip');
+        const severityFilters = document.querySelectorAll('.severity-filter');
+
+        // Current filters
+        let currentCategory = 'all';
+        let currentSeverity = 'all';
+        let currentSearchTerm = '';
+
+        // Highlight matching text
+        function highlightText(text, searchTerm) {
+            if (!searchTerm) return text;
+            
+            const regex = new RegExp(searchTerm, 'gi');
+            return text.replace(regex, match => `<span class="search-highlight">${match}</span>`);
+        }
+
+        // Get severity color
+        function getSeverityColor(severity) {
+            const colors = {
+                'info': 'text-blue-400',
+                'success': 'text-green-400',
+                'warning': 'text-yellow-400',
+                'critical': 'text-red-400'
+            };
+            return colors[severity] || 'text-gray-400';
+        }
+
+        // Get severity icon
+        function getSeverityIcon(severity) {
+            const icons = {
+                'info': 'info-circle',
+                'success': 'check-circle',
+                'warning': 'exclamation-triangle',
+                'critical': 'times-circle'
+            };
+            return icons[severity] || 'question-circle';
+        }
+
+        // Perform search and filtering
+        function performSearch() {
+            const searchTerm = searchInput.value.trim().toLowerCase();
+            currentSearchTerm = searchTerm;
+            
+            if (!searchTerm && currentCategory === 'all' && currentSeverity === 'all') {
+                resultsContainer.innerHTML = `
+                    <div class="p-6 text-center text-gray-400">
+                        <i class="fas fa-search fa-2x mb-3 text-gray-600"></i>
+                        <p>Enter a search term or select filters to find HTTP status codes</p>
+                    </div>
+                `;
+                resultCount.classList.add('hidden');
+                return;
+            }
+            
+            const filteredItems = errorData.filter(item => {
+                // Category filter
+                const categoryMatch = currentCategory === 'all' || item.category === currentCategory;
+                
+                // Severity filter
+                const severityMatch = currentSeverity === 'all' || item.severity === currentSeverity;
+                
+                // Search term
+                const searchMatch = !searchTerm || 
+                    item.code.toLowerCase().includes(searchTerm) ||
+                    item.title.toLowerCase().includes(searchTerm) ||
+                    item.description.toLowerCase().includes(searchTerm);
+                
+                return categoryMatch && severityMatch && searchMatch;
+            });
+            
+            displayResults(filteredItems, searchTerm);
+        }
+
+        // Display results
+        function displayResults(results, searchTerm) {
+            if (results.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="no-results p-6 text-center text-gray-400 fade-in">
+                        <div>
+                            <i class="fas fa-frown fa-2x mb-3 text-gray-600"></i>
+                            <p class="text-lg mb-2">No results found</p>
+                            <p class="text-sm">Try a different search term or adjust your filters</p>
+                        </div>
+                    </div>
+                `;
+                resultCount.textContent = "0 results";
+                resultCount.classList.remove('hidden');
+                return;
+            }
+            
+            let html = '';
+            
+            results.forEach(item => {
+                const highlightedCode = highlightText(item.code, searchTerm);
+                const highlightedTitle = highlightText(item.title, searchTerm);
+                const highlightedDescription = highlightText(item.description, searchTerm);
+                const severityColor = getSeverityColor(item.severity);
+                const severityIcon = getSeverityIcon(item.severity);
+                
+                html += `
+                    <div class="p-6 border-b border-gray-700 last:border-b-0 fade-in hover:bg-gray-700/50 transition-colors duration-200 severity-${item.severity}">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0 h-12 w-12 rounded-lg ${severityColor} bg-gray-700/50 flex items-center justify-center text-xl mr-4">
+                                <i class="fas fa-${severityIcon}"></i>
+                            </div>
+                            <div class="flex-grow">
+                                <div class="flex items-baseline justify-between">
+                                    <h3 class="text-xl font-semibold text-white">
+                                        <span class="${severityColor}">${highlightedCode}</span> - ${highlightedTitle}
+                                    </h3>
+                                    <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded-full">${item.category}</span>
+                                </div>
+                                <p class="text-gray-300 mt-2">${highlightedDescription}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            resultsContainer.innerHTML = html;
+            resultCount.textContent = `${results.length} ${results.length === 1 ? 'result' : 'results'}`;
+            resultCount.classList.remove('hidden');
+        }
+
+        // Event listeners
+        searchInput.addEventListener('input', () => {
+            performSearch();
+        });
+
+        // Category filter
+        categoryChips.forEach(chip => {
+            chip.addEventListener('click', () => {
+                categoryChips.forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                currentCategory = chip.dataset.category;
+                performSearch();
+            });
+        });
+
+        // Severity filter
+        severityFilters.forEach(filter => {
+            filter.addEventListener('click', () => {
+                severityFilters.forEach(f => {
+                    if (f.dataset.severity !== filter.dataset.severity) {
+                        f.classList.remove('bg-blue-900', 'bg-green-900', 'bg-yellow-900', 'bg-red-900');
+                        f.classList.add('bg-gray-700');
+                    }
+                });
+                
+                if (filter.dataset.severity !== 'all') {
+                    filter.classList.remove('bg-gray-700');
+                    if (filter.dataset.severity === 'info') filter.classList.add('bg-blue-900');
+                    if (filter.dataset.severity === 'success') filter.classList.add('bg-green-900');
+                    if (filter.dataset.severity === 'warning') filter.classList.add('bg-yellow-900');
+                    if (filter.dataset.severity === 'critical') filter.classList.add('bg-red-900');
+                }
+                
+                currentSeverity = filter.dataset.severity;
+                performSearch();
+            });
+        });
+
+        // Initialize with 'all' category active
+        document.querySelector('.category-chip[data-category="all"]').classList.add('active');
+
+        // Debounce search for performance
+        function debounce(func, wait) {
+            let timeout;
+            return function() {
+                const context = this;
+                const args = arguments;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    func.apply(context, args);
+                }, wait);
+            };
+        }
+
+        searchInput.addEventListener('input', debounce(performSearch, 300));
+    </script>
+</body>
+</html>
